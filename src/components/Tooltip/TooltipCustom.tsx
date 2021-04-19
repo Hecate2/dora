@@ -30,7 +30,7 @@ const Title: React.FC<ITitle> = ({text}) => {
 
 const TooltipCustom: React.FC<ITooltipCustom> = ({title, children}) => {
     return (
-        <Custom title={<Title text={title}/>} arrow>
+        <Custom hidden={false} title={<Title text={title}/>} arrow>
           {children as React.ReactElement<any, any>}
         </Custom>
     )

@@ -1,4 +1,4 @@
-import React, { ReactElement, useEffect, useState, useContext, useMemo } from 'react'
+import React, { ReactElement, useEffect, useState, useContext, useCallback } from 'react'
 import ReactCountryFlag from 'react-country-flag'
 import { useSelector, useDispatch } from 'react-redux'
 
@@ -29,7 +29,7 @@ import TooltipCustom from '../../components/Tooltip/TooltipCustom'
 
 const socket = new Socket('wss://dora.coz.io/ws/v1/unified/network_status')
 
-type ParsedNodes = {
+export type ParsedNodes = {
   endpoint: React.FC<{}>
   type: React.FC<{}>
   isItUp: React.FC<{}>
@@ -81,27 +81,27 @@ const Endpoint: React.FC<Endpoint> = ({ url, locationEndPoint, disable }) => {
   return (
     <TooltipCustom title="endpoint">
       <div
-      className={
-        disable ? 'endpoint disable cursor-pointer' : 'endpoint cursor-pointer'
-      }
-      onClick={handleClickEndpoint}
-    >
-      <div className="endpoint-flag-container">
-        <ReactCountryFlag
-          style={{
-            fontSize: '1.5em',
-            lineHeight: '1.5em',
-          }}
-          countryCode={
-            LOCATIONS_FLAGS.find(
-              ({ location }) => location === locationEndPoint,
-            )?.countryCode
-          }
-        />
-      </div>
+        className={
+          disable ? 'endpoint disable cursor-pointer' : 'endpoint cursor-pointer'
+        }
+        onClick={handleClickEndpoint}
+      >
+        <div className="endpoint-flag-container">
+          <ReactCountryFlag
+            style={{
+              fontSize: '1.5em',
+              lineHeight: '1.5em',
+            }}
+            countryCode={
+              LOCATIONS_FLAGS.find(
+                ({ location }) => location === locationEndPoint,
+              )?.countryCode
+            }
+          />
+        </div>
 
-      <div>{url}</div>
-    </div>
+        <div>{url}</div>
+      </div>
     </TooltipCustom>
   )
 }
@@ -111,8 +111,8 @@ type IsItUp = {
 }
 
 const IsItUp: React.FC<IsItUp> = ({ statusIsItUp }): JSX.Element => {
-  const { setStopUpdateData } = useContext(MonitorContext)
-  
+  const { setStopUpdateData, dataList, message, showMessage } = useContext(MonitorContext)
+  const test = ''
   const handleStopUpdateData = (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
     e.preventDefault()
     setStopUpdateData(true)
@@ -128,11 +128,6 @@ const IsItUp: React.FC<IsItUp> = ({ statusIsItUp }): JSX.Element => {
   }
 
   const Icon = getIconByStatus()
-
-  useEffect(() => {
-    console.log(statusIsItUp)
-  }, [])
-
 
   return (
     <TooltipCustom title="testando ...">
@@ -215,8 +210,8 @@ const mapNodesData = (data: WSDoraData): ParsedNodes => {
     peers: isPositive()
       ? data.peers
       : (): ReactElement => (
-          <NegativeComponent disable={!isPositive() ? true : false} />
-        ),
+        <NegativeComponent disable={!isPositive() ? true : false} />
+      ),
     availability: isPositive()
       ? `${data.reliability}%`
       : (): ReactElement => (
@@ -350,12 +345,11 @@ const Monitor: React.FC<{}> = () => {
     ({ network }: { network: NetworkState }) => network,
   )
   const nodes = useSelector(({ node }: { node: NodeState }) => node)
-  const [dataList, setDataList] = useState<Array<ParsedNodes>>([])
   const [sortDataList, setSortDataList] = useState<{
     desc: boolean
     sort: SORT_OPTION
   }>({ desc: false, sort: 'isItUp' })
-  const { message, showMessage, setShowMessage, stopUpdateData } = useContext(MonitorContext)
+  const { message, showMessage, setShowMessage, stopUpdateData, dataList, setDataList } = useContext(MonitorContext)
 
   const handleSortDataList = (option: SORT_OPTION): void => {
     setSortDataList({ sort: option, desc: !sortDataList.desc })
@@ -363,10 +357,11 @@ const Monitor: React.FC<{}> = () => {
 
   const handleSetDataList = () => {
     if (!stopUpdateData) {
+      const serializedData = SerializeNode(nodes, sortDataList.sort, sortDataList.desc)
       setDataList(
         returnNodesListData(
-          SerializeNode(nodes, sortDataList.sort, sortDataList.desc),
-          false,
+          serializedData,
+          stopUpdateData,
           network,
         ),
       )
