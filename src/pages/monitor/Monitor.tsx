@@ -1,4 +1,4 @@
-import React, { ReactElement, useEffect, useState, useContext } from 'react'
+import React, { ReactElement, useEffect, useState, useContext, useMemo } from 'react'
 import ReactCountryFlag from 'react-country-flag'
 import { useSelector, useDispatch } from 'react-redux'
 
@@ -25,6 +25,7 @@ import { ReactComponent as ApprovedSVG } from '../../assets/icons/approved.svg'
 import { ReactComponent as DisapprovedSVG } from '../../assets/icons/disapproved.svg'
 import { ReactComponent as OnHoldSVG } from '../../assets/icons/on-hold.svg'
 import { MonitorContext } from '../../contexts/MonitorContext'
+import TooltipCustom from '../../components/Tooltip/TooltipCustom'
 
 const socket = new Socket('wss://dora.coz.io/ws/v1/unified/network_status')
 
@@ -57,12 +58,13 @@ const STATUS_ICONS = [
 ]
 
 const Endpoint: React.FC<Endpoint> = ({ url, locationEndPoint, disable }) => {
-  const { setMessage, setShowMessage } = useContext(MonitorContext)
+  const { setMessage, setShowMessage, setStopUpdateData } = useContext(MonitorContext)
   const handleClickEndpoint = (
     e: React.MouseEvent<HTMLDivElement, MouseEvent>,
   ): void => {
     e.preventDefault()
     navigator.clipboard.writeText(url)
+    setStopUpdateData(true)
     setMessage('Copied to Clipboard!')
     setShowMessage(true)
   }
@@ -77,7 +79,8 @@ const Endpoint: React.FC<Endpoint> = ({ url, locationEndPoint, disable }) => {
   ]
 
   return (
-    <div
+    <TooltipCustom title="endpoint">
+      <div
       className={
         disable ? 'endpoint disable cursor-pointer' : 'endpoint cursor-pointer'
       }
@@ -99,6 +102,7 @@ const Endpoint: React.FC<Endpoint> = ({ url, locationEndPoint, disable }) => {
 
       <div>{url}</div>
     </div>
+    </TooltipCustom>
   )
 }
 
@@ -107,6 +111,12 @@ type IsItUp = {
 }
 
 const IsItUp: React.FC<IsItUp> = ({ statusIsItUp }): JSX.Element => {
+  const { setStopUpdateData } = useContext(MonitorContext)
+  
+  const handleStopUpdateData = (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
+    e.preventDefault()
+    setStopUpdateData(true)
+  }
   const getIconByStatus = (): React.FunctionComponent<
     React.SVGProps<SVGSVGElement> & {
       title?: string | undefined
@@ -118,7 +128,19 @@ const IsItUp: React.FC<IsItUp> = ({ statusIsItUp }): JSX.Element => {
   }
 
   const Icon = getIconByStatus()
-  return <div>{<Icon />}</div>
+
+  useEffect(() => {
+    console.log(statusIsItUp)
+  }, [])
+
+
+  return (
+    <TooltipCustom title="testando ...">
+      <div onMouseEnter={handleStopUpdateData} onMouseLeave={() => { setStopUpdateData(false) }}>
+        {<Icon />}
+      </div>
+    </TooltipCustom>
+  )
 }
 
 interface NegativeComponent extends AllNodes {
@@ -177,16 +199,16 @@ const mapNodesData = (data: WSDoraData): ParsedNodes => {
     blockHeight: isPositive()
       ? `#${data.height}`
       : (): ReactElement => (
-          <NegativeComponent
-            useHashTag={true}
-            disable={!isPositive() ? true : false}
-          />
-        ),
+        <NegativeComponent
+          useHashTag={true}
+          disable={!isPositive() ? true : false}
+        />
+      ),
     version: isPositive()
       ? data.version
       : (): ReactElement => (
-          <NegativeComponent disable={!isPositive() ? true : false} />
-        ),
+        <NegativeComponent disable={!isPositive() ? true : false} />
+      ),
     type: (): ReactElement => (
       <TypeNode textType={data.type} disable={!isPositive() ? true : false} />
     ),
@@ -198,16 +220,16 @@ const mapNodesData = (data: WSDoraData): ParsedNodes => {
     availability: isPositive()
       ? `${data.reliability}%`
       : (): ReactElement => (
-          <NegativeComponent disable={!isPositive() ? true : false} />
-        ),
+        <NegativeComponent disable={!isPositive() ? true : false} />
+      ),
     stateHeight: isPositive()
       ? `#${data.stateheight}`
       : (): ReactElement => (
-          <NegativeComponent
-            useHashTag={true}
-            disable={!isPositive() ? true : false}
-          />
-        ),
+        <NegativeComponent
+          useHashTag={true}
+          disable={!isPositive() ? true : false}
+        />
+      ),
     isItUp: (): ReactElement => <IsItUp statusIsItUp={data.status} />,
     chain: data.status || '',
   }
@@ -333,10 +355,22 @@ const Monitor: React.FC<{}> = () => {
     desc: boolean
     sort: SORT_OPTION
   }>({ desc: false, sort: 'isItUp' })
-  const { message, showMessage, setShowMessage } = useContext(MonitorContext)
+  const { message, showMessage, setShowMessage, stopUpdateData } = useContext(MonitorContext)
 
   const handleSortDataList = (option: SORT_OPTION): void => {
     setSortDataList({ sort: option, desc: !sortDataList.desc })
+  }
+
+  const handleSetDataList = () => {
+    if (!stopUpdateData) {
+      setDataList(
+        returnNodesListData(
+          SerializeNode(nodes, sortDataList.sort, sortDataList.desc),
+          false,
+          network,
+        ),
+      )
+    }
   }
 
   const dispatch = useDispatch()
@@ -348,22 +382,7 @@ const Monitor: React.FC<{}> = () => {
   }, [dispatch])
 
   useEffect(() => {
-    setDataList(
-      returnNodesListData(
-        SerializeNode(nodes, sortDataList.sort, sortDataList.desc).filter(
-          nodes => {
-            if (network === 'testnet') {
-              return (
-                nodes.network === 'TestNet' || nodes.network === 'N3 TestNet'
-              )
-            } else return nodes.network === 'MainNet'
-          },
-        ),
-
-        false,
-        network,
-      ),
-    ) //eslint-disable-next-line
+    handleSetDataList() //eslint-disable-next-line
   }, [nodes, sortDataList])
 
   return (
