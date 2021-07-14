@@ -1,11 +1,22 @@
-import React, { ReactElement, useEffect, useState, useContext } from 'react'
+import React, {
+  ReactElement,
+  useEffect,
+  useState,
+  useContext,
+  useMemo,
+  ReactText,
+} from 'react'
+import uniqueId from 'lodash/uniqueId'
 import ReactCountryFlag from 'react-country-flag'
 import { useSelector, useDispatch } from 'react-redux'
-import Snackbar from '@material-ui/core/Snackbar'
+
+import { State as NetworkState } from '../../reducers/networkReducer'
+import { List, Snackbar, Theme, Tooltip, withStyles } from '@material-ui/core'
 import { Socket } from '../../config/Socket'
 import './Monitor.scss'
 import { ROUTES } from '../../constants'
 import Breadcrumbs from '../../components/navigation/Breadcrumbs'
+import { ReactComponent as ArrowSortSVG } from '../../assets/icons/arrow-sort.svg'
 import { ReactComponent as Cube } from '../../assets/icons/cube.svg'
 import { ReactComponent as Graphic } from '../../assets/icons/graphic.svg'
 import { ReactComponent as Hourglass } from '../../assets/icons/hourglass.svg'
@@ -16,17 +27,18 @@ import {
   OrderNodes,
 } from '../../reducers/nodeReducer'
 import { setNode } from '../../actions/nodeActions'
-import List, { ColumnType } from '../../components/list/List'
+import { ColumnType } from '../../components/list/List'
 import { MOCK_NODES } from '../../utils/mockData'
 import InformationPanel from '../../components/panel/InformationPanel'
 import { ReactComponent as ApprovedSVG } from '../../assets/icons/approved.svg'
 import { ReactComponent as DisapprovedSVG } from '../../assets/icons/disapproved.svg'
 import { ReactComponent as OnHoldSVG } from '../../assets/icons/on-hold.svg'
-import { MonitorContext } from '../../contexts/MonitorContext'
+import { MonitorContext, TFilterName } from '../../contexts/MonitorContext'
 import { ReactComponent as CopyIcon } from '../../assets/icons/content_copy_white_48dp.svg'
 import useWindowWidth from '../../hooks/useWindowWidth'
 import Filter, { Platform } from '../../components/filter/Filter'
 import useFilterState from '../../hooks/useFilterState'
+import classNames from 'classnames'
 
 const socket = new Socket('wss://dora.coz.io/ws/v1/unified/network_status')
 
@@ -89,11 +101,31 @@ const Endpoint: React.FC<Endpoint> = ({ url, locale, disable }) => {
   )
 }
 
+const IsItUpTooltip = withStyles((theme: Theme) => ({
+  tooltip: {
+    //width: '127px',
+    //height: '32px',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: '#4cffb3',
+    backgroundColor: 'rgba(14, 25, 27, 0.73)',
+    fontSize: '15px',
+  },
+  arrow: {
+    //borderWidth: '1px',
+    //borderColor: '#4cffb3',
+    //borderStyle: 'solid',
+    color: 'rgba(14, 25, 27, 1)',
+  },
+}))(Tooltip)
+
 type IsItUp = {
   statusIsItUp: string
 }
 
 const IsItUp: React.FC<IsItUp> = ({ statusIsItUp }): JSX.Element => {
+  const { setStopRender } = useContext(MonitorContext)
+  const [showToolTip, setShowToolTip] = useState<boolean>(false)
   const getIconByStatus = (): React.FunctionComponent<
     React.SVGProps<SVGSVGElement> & {
       title?: string | undefined
@@ -104,8 +136,30 @@ const IsItUp: React.FC<IsItUp> = ({ statusIsItUp }): JSX.Element => {
     return Icon ?? DisapprovedSVG
   }
 
+  const handleMouseEvent = (showTooltip: boolean): void => {
+    setStopRender(showTooltip)
+    setShowToolTip(showTooltip)
+  }
+
   const Icon = getIconByStatus()
-  return <div>{<Icon />}</div>
+  return (
+    <div
+      onMouseEnter={(): void => handleMouseEvent(true)}
+      onMouseLeave={(): void => handleMouseEvent(false)}
+    >
+      <IsItUpTooltip
+        open={showToolTip}
+        arrow={true}
+        title={`Status: ${statusIsItUp}`}
+        onClose={(): void => {
+          setStopRender(false)
+        }}
+        placement={'right'}
+      >
+        <Icon />
+      </IsItUpTooltip>
+    </div>
+  )
 }
 
 interface NegativeComponent extends AllNodes {
@@ -145,6 +199,21 @@ const mapNodesData = (data: WSDoraData): ParsedNodes => {
         key={data.url}
       />
     ),
+    type: (): ReactElement => (
+      <TypeNode textType={data.type} disable={!isPositive()} />
+    ),
+    isItUp: (): ReactElement => (
+      <IsItUp statusIsItUp={data.status} key={`${data.url} isitup`} />
+    ),
+    chain: data.status || '',
+    availability: isPositive()
+      ? `${data.reliability}%`
+      : (): ReactElement => <NegativeComponent disable={!isPositive()} />,
+    stateHeight: isPositive()
+      ? `#${data.stateheight}`
+      : (): ReactElement => (
+          <NegativeComponent useHashTag={true} disable={!isPositive()} />
+        ),
     blockHeight: isPositive()
       ? `#${data.height}`
       : (): ReactElement => (
@@ -153,22 +222,9 @@ const mapNodesData = (data: WSDoraData): ParsedNodes => {
     version: isPositive()
       ? data.version
       : (): ReactElement => <NegativeComponent disable={!isPositive()} />,
-    type: (): ReactElement => (
-      <TypeNode textType={data.type} disable={!isPositive()} />
-    ),
     peers: isPositive()
       ? data.peers
       : (): ReactElement => <NegativeComponent disable={!isPositive()} />,
-    availability: isPositive()
-      ? `${data.availability}%`
-      : (): ReactElement => <NegativeComponent disable={!isPositive()} />,
-    stateHeight: isPositive()
-      ? `#${data.stateheight}`
-      : (): ReactElement => (
-          <NegativeComponent useHashTag={true} disable={!isPositive()} />
-        ),
-    isItUp: (): ReactElement => <IsItUp statusIsItUp={data.status} />,
-    chain: data.status || '',
   }
 }
 
@@ -313,6 +369,245 @@ const NetworkStatus: React.FC<NetworkStatus> = ({ data }) => {
   )
 }
 
+// <<<<<<< HEAD
+// const Monitor: React.FC<{}> = () => {
+// =======
+const ListMonitor: React.FC<{}> = () => {
+  const nodes = useSelector(({ node }: { node: NodeState }) => node)
+  const { protocol, network } = useFilterState()
+  // const { network } = useSelector(
+  //   ({ network }: { network: NetworkState }) => network,
+  // )
+  const { stopRender, filterName, setFilterName } = useContext(MonitorContext)
+  const [data, setData] = useState<Array<ParsedNodes>>([])
+  const dispatch = useDispatch()
+
+  const isLoading = nodes.isLoading
+  // >>>>>>> [Implementation] Add a tooltip when users hover over "Is it Up?" icon #310
+  const [sortDataList, setSortDataList] = useState<{
+    desc: boolean
+    sort: SORT_OPTION
+  }>({ desc: false, sort: 'isItUp' })
+
+  const { message, showMessage, setShowMessage } = useContext(MonitorContext)
+
+  const selectedData = (): WSDoraData[] => {
+    const sortedNodes = OrderNodes(
+      sortDataList.sort,
+      nodes.nodesArray,
+      sortDataList.desc,
+    )
+
+    if (protocol === 'all' && network === 'all') {
+      return sortedNodes
+    } else if (protocol === 'all' && network !== 'all') {
+      return sortedNodes.filter(node => node.network === network)
+    } else if (protocol !== 'all' && network === 'all') {
+      return sortedNodes.filter(node => node.protocol === protocol)
+    } else {
+      //temporary state, remove when api cuts over
+      let mutableNetwork = network
+      if (protocol === 'neo3' && mutableNetwork === 'testnet') {
+        mutableNetwork = 'testnet_rc3'
+      }
+      if (mutableNetwork === 'testnet_rc4') {
+        mutableNetwork = 'testnet'
+      }
+
+      return sortedNodes.filter(
+        node => node.protocol === protocol && node.network === mutableNetwork,
+      )
+    }
+  }
+
+  const leftBorderColorOnRow = (
+    _: string | number | React.FC<{}> | undefined,
+    chain: string | number | React.FC<{}> | undefined,
+  ): string => {
+    const color = STATUS_ICONS.find(({ status }) => status === chain)?.color
+    return color ?? '#de4c85'
+  }
+
+  const handleSortDataList = (option: SORT_OPTION): void => {
+    setSortDataList({ sort: option, desc: !sortDataList.desc })
+  }
+
+  const width = useWindowWidth()
+
+  /**
+   * Configures and begins listening to the socket
+   */
+  useEffect(() => {
+    socket.listening<WSDoraData>(data => {
+      dispatch(setNode(data))
+    })
+  }, [dispatch, sortDataList, stopRender])
+
+  const headerRowClass = classNames({
+    'loading-table-row': isLoading,
+    'data-list-column': true,
+  })
+
+  useEffect(() => {
+    if (!stopRender) {
+      setData(returnNodesListData(selectedData(), !selectedData().length))
+    } //eslint-disable-next-line
+  }, [nodes, sortDataList])
+
+  useEffect(() => {
+    setFilterName(network as TFilterName)
+  }, [network, setFilterName])
+
+  useEffect(() => {
+    setData(returnNodesListData(selectedData(), !selectedData().length)) //eslint-disable-next-line
+  }, [filterName])
+
+  const gridstyle = {
+    gridTemplateColumns: `repeat(${columns.length}, auto)`,
+  }
+
+  const rowClass = classNames({
+    'loading-table-row': isLoading,
+  })
+
+  const conditionalBorderRadius = (
+    index: number,
+    shouldReturnBorderLeftStyle?: boolean,
+    id?: string | number | React.FC<{}>,
+    chain?: string | number | React.FC<{}>,
+  ): { borderRadius: string } | undefined => {
+    if (!index) {
+      const border = {
+        borderRadius: '3px 0 0 3px',
+        borderLeft: '',
+      }
+      if (shouldReturnBorderLeftStyle && leftBorderColorOnRow) {
+        border.borderLeft = `solid 3px ${
+          typeof leftBorderColorOnRow === 'function'
+            ? leftBorderColorOnRow(id, chain)
+            : leftBorderColorOnRow
+        }`
+      }
+      return border
+    }
+    if (index === columns.length) {
+      const border = {
+        borderRadius: '0 3px 3px 0',
+      }
+      return border
+    }
+    return undefined
+  }
+
+  const CListMonitor = useMemo(() => {
+    const renderCellData = (
+      isLoading: boolean,
+      data: string | number | React.FC<{}>,
+    ): ReactText | React.ReactNode => {
+      const cellProps = {}
+      if (isLoading) return undefined
+      if (typeof data === 'function') return data(cellProps)
+      return data
+    }
+
+    const conditionalColumns =
+      width > 1000
+        ? width < 1200
+          ? tabletColumns
+          : columns
+        : width < 768
+        ? mobileColumns
+        : tabletColumns
+
+    interface HeaderCell {
+      styleHeader?: React.CSSProperties
+      classNameHeader?: string
+      nameColumn?: React.Key | null
+      isLoading?: boolean
+      orderData?: boolean
+      sortOpt?: SORT_OPTION
+      callbalOrderData?: (field: SORT_OPTION) => void
+    }
+    const HeaderCell: React.FC<HeaderCell> = ({
+      styleHeader,
+      classNameHeader,
+      nameColumn,
+      isLoading,
+      sortOpt,
+      callbalOrderData,
+    }) => {
+      return (
+        <div
+          style={styleHeader}
+          className={`${classNameHeader} header-cell-container`}
+          key={nameColumn}
+          onClick={(e): void => {
+            e.preventDefault()
+            callbalOrderData && sortOpt && callbalOrderData(sortOpt)
+          }}
+        >
+          {isLoading ? '' : nameColumn}
+          <div className="data-list-arrow-sort">
+            <ArrowSortSVG />
+          </div>
+        </div>
+      )
+    }
+
+    return (
+      <div className="data-list" style={gridstyle}>
+        {conditionalColumns.map((column, i) => {
+          return (
+            <HeaderCell
+              classNameHeader={headerRowClass}
+              styleHeader={{
+                ...conditionalBorderRadius(i),
+                ...(column.style || {}),
+              }}
+              key={column.name}
+              isLoading={nodes.isLoading}
+              sortOpt={column.sortOpt}
+              callbalOrderData={handleSortDataList}
+              nameColumn={column.name}
+            />
+          )
+        })}
+        {data.map(
+          (
+            data: {
+              [key: string]: string | number | React.FC<{}>
+            },
+            index: number,
+          ) =>
+            Object.keys(data).map((key, i) => {
+              return (
+                key !== 'id' &&
+                key !== 'href' &&
+                key !== 'chain' && (
+                  <div
+                    id="non-link-list-cell-container"
+                    style={conditionalBorderRadius(
+                      i,
+                      true,
+                      data.id,
+                      data.chain,
+                    )}
+                    key={uniqueId()}
+                    className={rowClass}
+                  >
+                    {renderCellData(isLoading, data[key])}
+                  </div>
+                )
+              )
+            }),
+        )}
+      </div>
+    ) //eslint-disable-next-line
+  }, [data])
+
+  return CListMonitor
+}
+
 const Monitor: React.FC<{}> = () => {
   const nodes = useSelector(({ node }: { node: NodeState }) => node)
   const { protocol, handleSetFilterData, network } = useFilterState()
@@ -352,32 +647,6 @@ const Monitor: React.FC<{}> = () => {
     }
   }
 
-  const handleSortDataList = (option: SORT_OPTION): void => {
-    setSortDataList({ sort: option, desc: !sortDataList.desc })
-  }
-
-  const dispatch = useDispatch()
-
-  /**
-   * Configures and begins listening to the socket
-   */
-  useEffect(() => {
-    socket.listening<WSDoraData>(data => {
-      dispatch(setNode(data))
-    })
-  }, [dispatch, sortDataList])
-
-  const width = useWindowWidth()
-
-  const conditionalColumns =
-    width > 1000
-      ? width < 1200
-        ? tabletColumns
-        : columns
-      : width < 768
-      ? mobileColumns
-      : tabletColumns
-
   return (
     <div id="Monitor" className="page-container">
       <div className="list-wrapper">
@@ -416,20 +685,7 @@ const Monitor: React.FC<{}> = () => {
           <NetworkStatus data={selectedData()} />
         </div>
         <div>
-          <List
-            data={returnNodesListData(selectedData(), !selectedData().length)}
-            columns={conditionalColumns}
-            isLoading={nodes.isLoading}
-            rowId="endpoint"
-            leftBorderColorOnRow={(_, chain): string => {
-              const color = STATUS_ICONS.find(({ status }) => status === chain)
-                ?.color
-              return color ?? '#de4c85'
-            }}
-            orderData={true}
-            callbalOrderData={handleSortDataList}
-            paddingCell={{ paddingValue: '0 0 0 21px', indexesColumns: [0] }}
-          />
+          <ListMonitor />
         </div>
         <Snackbar
           title={message}
