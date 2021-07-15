@@ -458,12 +458,9 @@ const ListMonitor: React.FC<{}> = () => {
     setData(returnNodesListData(selectedData(), !selectedData().length)) //eslint-disable-next-line
   }, [filterName])
 
-  const gridstyle = {
-    gridTemplateColumns: `repeat(${columns.length}, auto)`,
-  }
-
   const rowClass = classNames({
     'loading-table-row': isLoading,
+    'without-pointer-cursor': true,
   })
 
   const conditionalBorderRadius = (
@@ -514,6 +511,32 @@ const ListMonitor: React.FC<{}> = () => {
         : width < 768
         ? mobileColumns
         : tabletColumns
+
+    const gridstyle = {
+      gridTemplateColumns: `repeat(${conditionalColumns.length}, auto)`,
+    }
+
+    const sortedByAccessor = data.map(
+      (
+        data: {
+          [key: string]: string | number | React.FC<{}>
+        },
+        index: number,
+      ) => {
+        interface Sorted {
+          id: string
+          [key: string]: string | number | React.FC<{}>
+        }
+
+        const sorted = {} as Sorted
+        conditionalColumns.forEach(column => {
+          sorted[column.accessor] = data[column.accessor]
+          sorted.id = String(data['endpoint'])
+          sorted.chain = data.chain
+        })
+        return sorted
+      },
+    )
 
     interface HeaderCell {
       styleHeader?: React.CSSProperties
@@ -568,7 +591,7 @@ const ListMonitor: React.FC<{}> = () => {
             />
           )
         })}
-        {data.map(
+        {sortedByAccessor.map(
           (
             data: {
               [key: string]: string | number | React.FC<{}>
@@ -599,7 +622,7 @@ const ListMonitor: React.FC<{}> = () => {
         )}
       </div>
     ) //eslint-disable-next-line
-  }, [data])
+  }, [data, width])
 
   return CListMonitor
 }
