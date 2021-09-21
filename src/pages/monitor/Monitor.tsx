@@ -10,8 +10,7 @@ import uniqueId from 'lodash/uniqueId'
 import ReactCountryFlag from 'react-country-flag'
 import { useSelector, useDispatch } from 'react-redux'
 
-import { State as NetworkState } from '../../reducers/networkReducer'
-import { List, Snackbar, Theme, Tooltip, withStyles } from '@material-ui/core'
+import { Snackbar, Theme, Tooltip, withStyles } from '@material-ui/core'
 import { Socket } from '../../config/Socket'
 import './Monitor.scss'
 import { ROUTES } from '../../constants'
@@ -33,7 +32,7 @@ import InformationPanel from '../../components/panel/InformationPanel'
 import { ReactComponent as ApprovedSVG } from '../../assets/icons/approved.svg'
 import { ReactComponent as DisapprovedSVG } from '../../assets/icons/disapproved.svg'
 import { ReactComponent as OnHoldSVG } from '../../assets/icons/on-hold.svg'
-import { MonitorContext, TFilterName } from '../../contexts/MonitorContext'
+import { MonitorContext } from '../../contexts/MonitorContext'
 import { ReactComponent as CopyIcon } from '../../assets/icons/content_copy_white_48dp.svg'
 import useWindowWidth from '../../hooks/useWindowWidth'
 import Filter, { Platform } from '../../components/filter/Filter'
@@ -365,27 +364,17 @@ const NetworkStatus: React.FC<NetworkStatus> = ({ data }) => {
   )
 }
 
-// <<<<<<< HEAD
-// const Monitor: React.FC<{}> = () => {
-// =======
 const ListMonitor: React.FC<{}> = () => {
   const nodes = useSelector(({ node }: { node: NodeState }) => node)
-  const { protocol, network } = useFilterState()
-  // const { network } = useSelector(
-  //   ({ network }: { network: NetworkState }) => network,
-  // )
-  const { stopRender, filterName, setFilterName } = useContext(MonitorContext)
+  const { stopRender, protocol, network } = useContext(MonitorContext)
   const [data, setData] = useState<Array<ParsedNodes>>([])
   const dispatch = useDispatch()
 
   const isLoading = nodes.isLoading
-  // >>>>>>> [Implementation] Add a tooltip when users hover over "Is it Up?" icon #310
   const [sortDataList, setSortDataList] = useState<{
     desc: boolean
     sort: SORT_OPTION
   }>({ desc: false, sort: 'isItUp' })
-
-  const { message, showMessage, setShowMessage } = useContext(MonitorContext)
 
   const selectedData = (): WSDoraData[] => {
     const sortedNodes = OrderNodes(
@@ -451,12 +440,8 @@ const ListMonitor: React.FC<{}> = () => {
   }, [nodes, sortDataList])
 
   useEffect(() => {
-    setFilterName(network as TFilterName)
-  }, [network, setFilterName])
-
-  useEffect(() => {
     setData(returnNodesListData(selectedData(), !selectedData().length)) //eslint-disable-next-line
-  }, [filterName])
+  }, [network, protocol])
 
   const rowClass = classNames({
     'loading-table-row': isLoading,
@@ -630,12 +615,18 @@ const ListMonitor: React.FC<{}> = () => {
 const Monitor: React.FC<{}> = () => {
   const nodes = useSelector(({ node }: { node: NodeState }) => node)
   const { protocol, handleSetFilterData, network } = useFilterState()
-  const [sortDataList, setSortDataList] = useState<{
+  const [sortDataList] = useState<{
     desc: boolean
     sort: SORT_OPTION
   }>({ desc: false, sort: 'isItUp' })
 
-  const { message, showMessage, setShowMessage } = useContext(MonitorContext)
+  const {
+    message,
+    showMessage,
+    setShowMessage,
+    setNetwork,
+    setProtocol,
+  } = useContext(MonitorContext)
 
   const selectedData = (): WSDoraData[] => {
     const sortedNodes = OrderNodes(
@@ -697,6 +688,8 @@ const Monitor: React.FC<{}> = () => {
                     protocol: (option.value as Platform).protocol,
                     network: (option.value as Platform).network,
                   })
+                  setNetwork((option.value as Platform).network)
+                  setProtocol((option.value as Platform).protocol)
                 }}
               />
             </div>
